@@ -58,6 +58,10 @@ async function generate() {
     statusMsg.style.color = "#10b981";
     statusMsg.innerText = "✅ Generated successfully!";
 
+    saveLocalHistory({ topic, style, language, model, content: generatedContent });
+    historyData = getLocalHistory();
+    renderHistory();
+
   } catch (error) {
     console.error("FETCH ERROR:", error);
     statusMsg.style.color = "#ef4444";
@@ -147,48 +151,54 @@ async function downloadPDF() {
     return;
   }
 
-  // If content contains Indic scripts (Telugu, Hindi, etc.), download as UTF-8 document
-  // so characters render perfectly and are not corrupted by latin-1 PDF generators
-  const hasIndic = /[\u0900-\u0D7F]/.test(generatedContent);
-  if (hasIndic) {
-    const blob = new Blob([generatedContent], { type: "text/plain;charset=utf-8" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "blog-content.txt";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+function downloadBlogText() {
+  const blob = new Blob([generatedContent || "No content"], { type: "text/plain;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "blog-content.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// 📄 DOWNLOAD PDF (WITH AUTOMATIC TEXT FALLBACK)
+function downloadPDF() {
+  if (!generatedContent) {
+    alert("Please generate content first.");
     return;
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/download`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ content: generatedContent })
-    });
+  const hasIndic = /[\u0900-\u0D7F]/.test(generatedContent);
+  if (hasIndic) {
+    downloadBlogText();
+    return;
+  }
 
-    if (!res.ok) {
-      alert("Failed to generate PDF");
-      return;
-    }
-
-    const blob = await res.blob();
+  fetch(`${API_BASE}/download`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ content: generatedContent })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("PDF endpoint failed");
+    return res.blob();
+  })
+  .then(blob => {
     const url = window.URL.createObjectURL(blob);
-
     const a = document.createElement("a");
     a.href = url;
     a.download = "content.pdf";
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } catch (err) {
-    console.error("PDF Download error:", err);
-    alert("Failed to download PDF.");
-  }
+  })
+  .catch(err => {
+    console.warn("Falling back to text download:", err);
+    downloadBlogText();
+  });
 }
 
 // 🖼️ DOWNLOAD IMAGE HANDLER
@@ -206,23 +216,48 @@ function downloadImage() {
   }
 }
 
-// 📂 HISTORY (SAFE VERSION)
+// 📂 HISTORY (CLOUD + LOCALSTORAGE SAFE)
+function getLocalHistory() {
+  try {
+    return JSON.parse(localStorage.getItem("ai_trendsetter_history") || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalHistory(item) {
+  try {
+    const list = getLocalHistory();
+    list.push(item);
+    localStorage.setItem("ai_trendsetter_history", JSON.stringify(list));
+  } catch (e) {}
+}
+
+function renderHistory() {
+  let html = "";
+  historyData.slice().reverse().forEach((item, index) => {
+    const realIndex = historyData.length - 1 - index;
+    html += `<p style="cursor:pointer; padding:6px 8px; border-radius:4px; margin:4px 0; background:rgba(255,255,255,0.05);" onclick="showHistoryItem(${realIndex})" title="Click to view">🔥 ${item.topic}</p>`;
+  });
+  const histEl = document.getElementById("history");
+  if (histEl) {
+    histEl.innerHTML = html || "<p>No history yet.</p>";
+  }
+}
+
 async function loadHistory() {
   try {
     const res = await fetch(`${API_BASE}/history`);
     const data = await res.json();
-    historyData = data;
-
-    let html = "";
-    data.slice().reverse().forEach((item, index) => {
-      const realIndex = data.length - 1 - index;
-      html += `<p style="cursor:pointer; padding:6px 8px; border-radius:4px; margin:4px 0; background:rgba(255,255,255,0.05);" onclick="showHistoryItem(${realIndex})" title="Click to view">🔥 ${item.topic}</p>`;
-    });
-
-    document.getElementById("history").innerHTML = html || "<p>No history yet.</p>";
+    if (data && data.length > 0) {
+      historyData = data;
+    } else {
+      historyData = getLocalHistory();
+    }
   } catch (err) {
-    console.log("History load error:", err);
+    historyData = getLocalHistory();
   }
+  renderHistory();
 }
 
 function showHistoryItem(index) {
