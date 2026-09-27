@@ -1,0 +1,6 @@
+/generate    /.netlify/functions/generate    200!
+/history     /.netlify/functions/history     200!
+/models      /.netlify/functions/models      200!
+/api/generate /.netlify/functions/generate   200!
+/api/history  /.netlify/functions/history    200!
+/api/models   /.netlify/functions/models     200!

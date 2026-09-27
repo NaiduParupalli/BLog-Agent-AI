@@ -124,41 +124,38 @@ async function generate() {
   try {
     let resultText = "";
 
-    // 1. Try server endpoint
-    try {
-      const endpoint = isNetlify ? "/.netlify/functions/generate" : `${API_BASE}/generate`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, style, language, model, gemini_api_key: customKey })
-      });
+    // 1. Direct browser API call if user has configured key (fastest & 100% standalone)
+    if (customKey) {
+      statusMsg.innerText = `🤖 Generating content for "${topic}" via Gemini AI... (~15-20s)`;
+      const prompt = buildPrompt(topic, style, language);
+      resultText = await callGeminiDirect(prompt, customKey);
+    } else {
+      // 2. Try server endpoint (local Ollama or Netlify function)
+      try {
+        const endpoint = isNetlify ? "/.netlify/functions/generate" : `${API_BASE}/generate`;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic, style, language, model })
+        });
 
-      const text = await res.text();
-      let data = {};
-      try { data = JSON.parse(text); } catch (e) {}
+        const text = await res.text();
+        let data = {};
+        try { data = JSON.parse(text); } catch (e) {}
 
-      if (data && data.result) {
-        resultText = data.result;
-      } else if (data && data.error && !customKey) {
-        // If server complained about missing key, prompt user
-        if (data.error.includes("No AI API key")) {
-          const keyDetails = document.getElementById("keyDetails");
-          if (keyDetails) keyDetails.open = true;
-          const keyInput = document.getElementById("customApiKey");
-          if (keyInput) keyInput.focus();
-          throw new Error("Please enter your free Google Gemini API Key in the settings box above.");
+        if (data && data.result) {
+          resultText = data.result;
+        } else if (data && data.error) {
+          throw new Error(data.error);
+        } else {
+          throw new Error("Backend not available");
         }
-        throw new Error(data.error);
-      }
-    } catch (serverErr) {
-      console.warn("Server generation attempt:", serverErr.message);
-      // 2. Direct browser fallback if user entered API key
-      if (customKey) {
-        statusMsg.innerText = "⚡ Generating directly via Gemini API...";
-        const prompt = buildPrompt(topic, style, language);
-        resultText = await callGeminiDirect(prompt, customKey);
-      } else {
-        throw serverErr;
+      } catch (serverErr) {
+        const keyDetails = document.getElementById("keyDetails");
+        if (keyDetails) keyDetails.open = true;
+        const keyInput = document.getElementById("customApiKey");
+        if (keyInput) keyInput.focus();
+        throw new Error("Please enter your free Google Gemini API Key in the settings box above to generate.");
       }
     }
 
