@@ -5,7 +5,9 @@ from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 from fpdf import FPDF
 
-FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public"))
+if not os.path.exists(FRONTEND_DIR):
+    FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 CORS(app)
@@ -108,6 +110,7 @@ def static_files(filename):
 
 
 @app.route("/models", methods=["GET"])
+@app.route("/api/models", methods=["GET"])
 def get_models():
     try:
         res = requests.get("http://localhost:11434/api/tags", timeout=3)
@@ -118,6 +121,7 @@ def get_models():
 
 
 @app.route("/generate", methods=["POST"])
+@app.route("/api/generate", methods=["POST"])
 def generate():
     try:
         data = request.json or {}
@@ -185,6 +189,7 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.
 
 
 @app.route("/history", methods=["GET"])
+@app.route("/api/history", methods=["GET"])
 def get_history():
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -194,6 +199,7 @@ def get_history():
 
 
 @app.route("/download", methods=["POST"])
+@app.route("/api/download", methods=["POST"])
 def download_pdf():
     content = request.json.get("content", "")
 
