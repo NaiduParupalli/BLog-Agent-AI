@@ -101,8 +101,12 @@ async function generate() {
   const style = document.getElementById("style").value;
   const language = document.getElementById("language").value;
   const modelSelect = document.getElementById("model");
-  const model = modelSelect ? modelSelect.value : "gemma3:1b";
-  const customKey = (localStorage.getItem("gemini_api_key") || "").trim();
+  const inputEl = document.getElementById("customApiKey");
+  const inputKey = inputEl ? inputEl.value.trim() : "";
+  const customKey = inputKey || (localStorage.getItem("gemini_api_key") || "").trim();
+  if (inputKey) {
+    try { localStorage.setItem("gemini_api_key", inputKey); } catch (e) {}
+  }
 
   if (!topic) {
     alert("Please enter a topic before generating.");
