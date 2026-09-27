@@ -1,6 +1,98 @@
-const API_BASE = (window.location.port === "3000" || window.location.protocol === "file:") ? "http://localhost:5000" : "";
+const isNetlify = window.location.hostname.includes("netlify.app");
+const API_BASE = (window.location.port === "3000" || window.location.protocol === "file:")
+  ? "http://localhost:5000"
+  : (isNetlify ? "/.netlify/functions" : "");
+
 let generatedContent = "";
 let historyData = [];
+
+// 🔑 API Key management
+function saveApiKey() {
+  const input = document.getElementById("customApiKey");
+  const key = input ? input.value.trim() : "";
+  if (!key) {
+    alert("Please enter a valid Gemini API Key.");
+    return;
+  }
+  localStorage.setItem("gemini_api_key", key);
+  const status = document.getElementById("keyStatus");
+  if (status) {
+    status.innerText = "✅ Saved!";
+    setTimeout(() => { status.innerText = ""; }, 3000);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedKey = localStorage.getItem("gemini_api_key");
+  const input = document.getElementById("customApiKey");
+  if (savedKey && input) {
+    input.value = savedKey;
+  }
+  loadHistory();
+});
+
+// Direct Gemini API call (client fallback)
+async function callGeminiDirect(prompt, apiKey) {
+  const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+  let lastErr = "";
+  for (const m of models) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }]
+        })
+      });
+      const data = await res.json();
+      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+        return data.candidates[0].content.parts[0].text;
+      }
+      if (data.error) {
+        lastErr = data.error.message || JSON.stringify(data.error);
+      }
+    } catch (e) {
+      lastErr = e.message;
+    }
+  }
+  throw new Error(lastErr || "Failed to generate via Gemini API.");
+}
+
+function buildPrompt(topic, style, language) {
+  const langLower = (language || "").toLowerCase();
+  let langInstruction = `Language: ${language}`;
+  let blogHint = `Write 200-300 words about ${topic}`;
+  let kwHint = `10 SEO keywords separated by commas (e.g. ${topic}, keyword2, keyword3, keyword4, keyword5, keyword6, keyword7, keyword8, keyword9, keyword10)`;
+
+  if (langLower === "telugu") {
+    langInstruction = "CRITICAL LANGUAGE REQUIREMENT: You MUST write the entire ### Blog and ### Keywords strictly in Telugu language using native Telugu script (తెలుగు లిపిలో రాయండి). Every sentence of the blog must be in Telugu. DO NOT write in English.";
+    blogHint = `Write 200-300 words strictly in Telugu script about ${topic}`;
+    kwHint = "10 SEO keywords in Telugu separated by commas";
+  } else if (langLower === "hindi") {
+    langInstruction = "CRITICAL LANGUAGE REQUIREMENT: You MUST write the entire ### Blog and ### Keywords strictly in Hindi language using native Devanagari Hindi script (हिन्दी भाषा और देवनागरी लिपि में लिखें). Every sentence of the blog must be in Hindi. DO NOT write in English.";
+    blogHint = `Write 200-300 words strictly in Hindi (Devanagari script) about ${topic}`;
+    kwHint = "10 SEO keywords in Hindi separated by commas";
+  }
+
+  return `You are an expert content creator. Generate content for: "${topic}"
+
+Tone/Style: ${style}
+${langInstruction}
+
+You MUST output ALL 4 sections below using these exact headers:
+
+### Blog
+(${blogHint})
+
+### Keywords
+${kwHint}
+
+### Hashtags
+10 hashtags starting with # (e.g. #tag1 #tag2 #tag3 #tag4 #tag5 #tag6 #tag7 #tag8 #tag9 #tag10)
+
+### Thumbnail
+A cinematic 4k ultra-realistic image prompt describing a visual for this blog.`;
+}
 
 // 🚀 GENERATE CONTENT
 async function generate() {
@@ -10,6 +102,7 @@ async function generate() {
   const language = document.getElementById("language").value;
   const modelSelect = document.getElementById("model");
   const model = modelSelect ? modelSelect.value : "gemma3:1b";
+  const customKey = (localStorage.getItem("gemini_api_key") || "").trim();
 
   if (!topic) {
     alert("Please enter a topic before generating.");
@@ -26,34 +119,54 @@ async function generate() {
   btn.innerText = "⏳ Generating...";
   loader.classList.remove("hidden");
   statusMsg.style.color = "#4f46e5";
-  statusMsg.innerText = `🤖 Generating content for "${topic}"... Please wait (~20-30 seconds).`;
+  statusMsg.innerText = `🤖 Generating content for "${topic}"... Please wait (~15-25 seconds).`;
 
   try {
-    const res = await fetch(`${API_BASE}/generate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ topic, style, language, model })
-    });
+    let resultText = "";
 
-    const data = await res.json();
+    // 1. Try server endpoint
+    try {
+      const endpoint = isNetlify ? "/.netlify/functions/generate" : `${API_BASE}/generate`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, style, language, model, gemini_api_key: customKey })
+      });
 
-    if (data.error) {
-      statusMsg.style.color = "#ef4444";
-      statusMsg.innerText = `❌ Error: ${data.error}`;
-      alert(`Generation Error: ${data.error}`);
-      return;
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch (e) {}
+
+      if (data && data.result) {
+        resultText = data.result;
+      } else if (data && data.error && !customKey) {
+        // If server complained about missing key, prompt user
+        if (data.error.includes("No AI API key")) {
+          const keyDetails = document.getElementById("keyDetails");
+          if (keyDetails) keyDetails.open = true;
+          const keyInput = document.getElementById("customApiKey");
+          if (keyInput) keyInput.focus();
+          throw new Error("Please enter your free Google Gemini API Key in the settings box above.");
+        }
+        throw new Error(data.error);
+      }
+    } catch (serverErr) {
+      console.warn("Server generation attempt:", serverErr.message);
+      // 2. Direct browser fallback if user entered API key
+      if (customKey) {
+        statusMsg.innerText = "⚡ Generating directly via Gemini API...";
+        const prompt = buildPrompt(topic, style, language);
+        resultText = await callGeminiDirect(prompt, customKey);
+      } else {
+        throw serverErr;
+      }
     }
 
-    if (!data.result) {
-      statusMsg.style.color = "#ef4444";
-      statusMsg.innerText = "❌ No content received from model.";
-      alert("No content received from AI.");
-      return;
+    if (!resultText) {
+      throw new Error("No content received. Please check your API key or backend connection.");
     }
 
-    generatedContent = data.result;
+    generatedContent = resultText;
     parseOutput(generatedContent);
     statusMsg.style.color = "#10b981";
     statusMsg.innerText = "✅ Generated successfully!";
@@ -63,10 +176,10 @@ async function generate() {
     renderHistory();
 
   } catch (error) {
-    console.error("FETCH ERROR:", error);
+    console.error("GENERATE ERROR:", error);
     statusMsg.style.color = "#ef4444";
-    statusMsg.innerText = "❌ Backend not reachable. Ensure Flask backend is running.";
-    alert("Backend not reachable. Please check backend status.");
+    statusMsg.innerText = `❌ ${error.message}`;
+    alert(`Generation Notice: ${error.message}`);
   } finally {
     btn.disabled = false;
     btn.style.opacity = "1";

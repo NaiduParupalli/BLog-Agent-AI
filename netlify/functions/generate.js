@@ -59,7 +59,7 @@ You MUST output ALL 4 sections below using these exact headers:
 (${blogHint})
 
 ### Keywords
-{kwHint}
+${kwHint}
 
 ### Hashtags
 10 hashtags starting with # (e.g. #tag1 #tag2 #tag3 #tag4 #tag5 #tag6 #tag7 #tag8 #tag9 #tag10)
@@ -71,6 +71,7 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.`;
     const geminiKey = process.env.GEMINI_API_KEY || data.gemini_api_key;
 
     let result = "";
+    let lastError = "";
 
     // 1. Try Groq Cloud if configured
     if (groqKey) {
@@ -88,47 +89,66 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.`;
           })
         });
         const groqData = await groqRes.json();
-        if (groqData.choices && groqData.choices[0]) {
+        if (groqData.choices && groqData.choices[0] && groqData.choices[0].message) {
           result = groqData.choices[0].message.content;
+        } else if (groqData.error) {
+          lastError = groqData.error.message || JSON.stringify(groqData.error);
         }
       } catch (err) {
         console.error("Groq Cloud error:", err);
+        lastError = err.message;
       }
     }
 
     // 2. Try Google Gemini if configured
     if (!result && geminiKey) {
-      try {
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        });
-        const geminiData = await geminiRes.json();
-        if (geminiData.candidates && geminiData.candidates[0]) {
-          result = geminiData.candidates[0].content.parts[0].text;
+      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+      for (const m of modelsToTry) {
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{
+                  role: "user",
+                  parts: [{ text: prompt }]
+                }]
+              })
+            }
+          );
+          const geminiData = await geminiRes.json();
+          if (geminiData.candidates && geminiData.candidates[0] && geminiData.candidates[0].content) {
+            result = geminiData.candidates[0].content.parts[0].text;
+            break;
+          } else if (geminiData.error) {
+            console.error(`Gemini (${m}) error:`, geminiData.error);
+            lastError = geminiData.error.message || JSON.stringify(geminiData.error);
+          }
+        } catch (err) {
+          console.error(`Gemini (${m}) network error:`, err);
+          lastError = err.message;
         }
-      } catch (err) {
-        console.error("Gemini API error:", err);
       }
     }
 
     if (!result) {
       if (!groqKey && !geminiKey) {
         return {
-          statusCode: 500,
+          statusCode: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           body: JSON.stringify({
-            error: "No cloud AI API key configured. In Netlify Site Settings > Environment Variables, please add GEMINI_API_KEY (from aistudio.google.com) or GROQ_API_KEY (from console.groq.com)."
+            error: "No AI API key found. Please add GEMINI_API_KEY in Netlify Site Configuration -> Environment Variables (or enter it in website settings)."
           }),
         };
       }
       return {
         statusCode: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "Cloud AI failed to return content. Check your API key or try again." }),
+        body: JSON.stringify({
+          error: lastError || "Cloud AI failed to return content. Check your API key or quota."
+        }),
       };
     }
 
