@@ -1,36 +1,29 @@
-﻿exports.handler = async function (event, context) {
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
+﻿export default async (req) => {
+  const corsHeaders = { "Access-Control-Allow-Origin": "*" };
+
+  if (req.method === "OPTIONS") {
+    return new Response("", {
+      status: 200,
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders,
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
       },
-      body: "",
-    };
+    });
   }
 
-  if (event.httpMethod !== "POST") {
-    return { 
-      statusCode: 405, 
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: "Method Not Allowed" }) 
-    };
+  if (req.method !== "POST") {
+    return Response.json({ error: "Method Not Allowed" }, { status: 405, headers: corsHeaders });
   }
 
   try {
-    const data = JSON.parse(event.body || "{}");
+    const data = await req.json().catch(() => ({}));
     const topic = (data.topic || "").trim();
     const style = data.style || "Informative";
     const language = (data.language || "English").trim();
 
     if (!topic) {
-      return {
-        statusCode: 400,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "Topic cannot be empty" }),
-      };
+      return Response.json({ error: "Topic cannot be empty" }, { status: 400, headers: corsHeaders });
     }
 
     const langLower = language.toLowerCase();
@@ -99,7 +92,8 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.`;
     // 2. Try Google Gemini if configured
     if (!result && geminiKey) {
       try {
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        const geminiBaseUrl = process.env.GOOGLE_GEMINI_BASE_URL || "https://generativelanguage.googleapis.com";
+        const geminiRes = await fetch(`${geminiBaseUrl}/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -117,32 +111,22 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.`;
 
     if (!result) {
       if (!groqKey && !geminiKey) {
-        return {
-          statusCode: 500,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          body: JSON.stringify({
+        return Response.json(
+          {
             error: "No cloud AI API key configured. In Netlify Site Settings > Environment Variables, please add GEMINI_API_KEY (from aistudio.google.com) or GROQ_API_KEY (from console.groq.com)."
-          }),
-        };
+          },
+          { status: 500, headers: corsHeaders }
+        );
       }
-      return {
-        statusCode: 500,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "Cloud AI failed to return content. Check your API key or try again." }),
-      };
+      return Response.json(
+        { error: "Cloud AI failed to return content. Check your API key or try again." },
+        { status: 500, headers: corsHeaders }
+      );
     }
 
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ result }),
-    };
+    return Response.json({ result }, { headers: corsHeaders });
 
   } catch (e) {
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: e.message }),
-    };
+    return Response.json({ error: e.message }, { status: 500, headers: corsHeaders });
   }
 };
