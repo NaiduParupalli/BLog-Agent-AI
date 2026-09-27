@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+<head>
+  <title>AI Trendsetter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>🚀 AI Trendsetter</h2>
+    <button onclick="loadHistory()">📂 History</button>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Top Controls -->
+    <div class="top">
+      <input id="topic" placeholder="Enter your topic..." />
+      
+      <select id="style">
+        <option>developer</option>
+        <option>designer</option>
+        <option>professional</option>
+        <option>storytelling</option>
+      </select>
+
+      <select id="language">
+        <option>English</option>
+        <option>Telugu</option>
+        <option>Hindi</option>
+      </select>
+
+      <button id="generateBtn" onclick="generate()">⚡ Generate</button>
+      <button onclick="downloadPDF()">📥 PDF</button>
+    </div>
+
+    <!-- Loader & Status -->
+    <div id="loader" class="loader hidden"></div>
+    <div id="statusMessage" style="text-align:center; padding: 10px; font-weight: 500; min-height: 24px;"></div>
+
+    <!-- Output -->
+    <div class="output">
+
+      <div class="card">
+        <h3>📝 Blog</h3>
+        <pre id="blog"></pre>
+      </div>
+
+      <div class="card">
+        <h3>#️⃣ Hashtags</h3>
+        <pre id="hashtags"></pre>
+      </div>
+
+      <div class="card">
+        <h3>🔑 Keywords</h3>
+        <pre id="keywords"></pre>
+      </div>
+
+      <div class="card">
+        <h3>🎨 Thumbnail Prompt</h3>
+        <pre id="thumbnail"></pre>
+      </div>
+
+      <!-- ✅ IMAGE SECTION FIXED -->
+      <div class="card">
+        <h3>🤖 Generated Image</h3>
+
+        <div class="image-box">
+          <img id="aiImage" />
+          <p id="imgStatus">No image yet</p>
+        </div>
+
+        <button onclick="downloadImage()">⬇ Download Image</button>
+      </div>
+
+    </div>
+
+    <!-- History -->
+    <div class="history" id="history"></div>
+
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

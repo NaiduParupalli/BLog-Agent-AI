@@ -13,19 +13,23 @@ CORS(app)
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+HISTORY_FILE = os.path.join("/tmp" if os.environ.get("VERCEL") else os.path.dirname(__file__), "history.json")
 
 # ✅ Save history
 def save_topic(data):
     try:
-        with open("history.json", "r", encoding="utf-8") as f:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             history = json.load(f)
     except:
         history = []
 
     history.append(data)
 
-    with open("history.json", "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2, ensure_ascii=False)
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print("History save warning:", e)
 
 
 def generate_ai_content(prompt, model="gemma3:1b"):
@@ -183,7 +187,7 @@ A cinematic 4k ultra-realistic image prompt describing a visual for this blog.
 @app.route("/history", methods=["GET"])
 def get_history():
     try:
-        with open("history.json", "r", encoding="utf-8") as f:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             return jsonify(json.load(f))
     except:
         return jsonify([])
@@ -201,8 +205,9 @@ def download_pdf():
         clean_line = line.encode("latin-1", "replace").decode("latin-1")
         pdf.multi_cell(0, 8, clean_line)
 
-    pdf.output("blog.pdf")
-    return send_file("blog.pdf", as_attachment=True)
+    pdf_path = os.path.join("/tmp" if os.environ.get("VERCEL") else os.path.dirname(__file__), "blog.pdf")
+    pdf.output(pdf_path)
+    return send_file(pdf_path, as_attachment=True)
 
 
 if __name__ == "__main__":
