@@ -39,18 +39,6 @@
       <button onclick="downloadPDF()">📥 PDF</button>
     </div>
 
-    <!-- Optional API Key Settings -->
-    <div style="margin-top: 10px; font-size: 13px;">
-      <details id="keyDetails" style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
-        <summary style="cursor: pointer; color: #94a3b8;">⚙️ Free AI API Key Settings (Click to configure)</summary>
-        <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;">
-          <input id="customApiKey" type="password" placeholder="Paste free Google Gemini API Key here..." style="flex: 1; min-width: 260px; padding: 8px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white;" />
-          <button onclick="saveApiKey()" style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold;">💾 Save Key</button>
-          <span id="keyStatus" style="color: #10b981; font-size: 12px;"></span>
-        </div>
-        <p style="margin: 6px 0 0 0; color: #64748b; font-size: 11px;">Get a 100% free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #60a5fa;">Google AI Studio</a>. Saved in your browser.</p>
-      </details>
-    </div>
 
     <!-- Loader & Status -->
     <div id="loader" class="loader hidden"></div>

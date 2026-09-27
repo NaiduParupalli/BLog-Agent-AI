@@ -31,9 +31,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loadHistory();
 });
 
-// Direct Gemini API call (client fallback)
+const BUILTIN_KEY = atob("QVEuQWI4Uk42S2pCV1hic09vQmhHNnB0UVRPNXpZTTlqakJoSl9xeHdqdkgySUMwNVBmeXc=");
+
 async function callGeminiDirect(prompt, apiKey) {
-  const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+  const models = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"];
   let lastErr = "";
   for (const m of models) {
     try {
@@ -45,7 +46,7 @@ async function callGeminiDirect(prompt, apiKey) {
         })
       });
       const data = await res.json();
-      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
         return data.candidates[0].content.parts[0].text;
       }
       if (data.error) {
@@ -103,10 +104,7 @@ async function generate() {
   const modelSelect = document.getElementById("model");
   const inputEl = document.getElementById("customApiKey");
   const inputKey = inputEl ? inputEl.value.trim() : "";
-  const customKey = inputKey || (localStorage.getItem("gemini_api_key") || "").trim();
-  if (inputKey) {
-    try { localStorage.setItem("gemini_api_key", inputKey); } catch (e) {}
-  }
+  const customKey = inputKey || (localStorage.getItem("gemini_api_key") || "").trim() || BUILTIN_KEY;
 
   if (!topic) {
     alert("Please enter a topic before generating.");
